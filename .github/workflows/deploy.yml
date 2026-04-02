@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest   # ✅ fixed
 
     steps:
       - name: Checkout code
@@ -25,15 +25,15 @@ jobs:
           aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 439045398889.dkr.ecr.ap-south-1.amazonaws.com
 
       - name: Build Docker image
-        run: docker build -t django-poc . 
+        run: docker build -t django-poc:${{ github.sha }} .
 
       - name: Tag image
-        run: docker tag django-poc:latest 439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:latest
+        run: docker tag django-poc:${{ github.sha }} 439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:${{ github.sha }}
 
       - name: Push to ECR
-        run: docker push 439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:latest
+        run: docker push 439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:${{ github.sha }}
 
-      - name: Force ECS Deployment
+      - name: Update ECS Service
         run: |
           aws ecs update-service \
             --cluster django-cluster \
