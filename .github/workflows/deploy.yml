@@ -33,16 +33,25 @@ jobs:
       - name: Push to ECR
         run: docker push 439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:${{ github.sha }}
 
-      # 🔥 NEW PART (IMPORTANT)
       - name: Get current task definition
         run: |
           aws ecs describe-task-definition \
             --task-definition django-task \
             --query taskDefinition > task-def.json
 
-      - name: Update image in task definition
+      - name: Clean and update task definition
         run: |
-          jq '.containerDefinitions[0].image = "439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:${{ github.sha }}"' task-def.json > new-task-def.json
+          jq '{
+            family,
+            networkMode,
+            containerDefinitions,
+            requiresCompatibilities,
+            cpu,
+            memory,
+            executionRoleArn,
+            taskRoleArn
+          } 
+          | .containerDefinitions[0].image = "439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:${{ github.sha }}"' task-def.json > new-task-def.json
 
       - name: Register new task definition
         run: |
