@@ -10,9 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # 2️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -20,25 +22,31 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
 
+      # 3️⃣ Login to ECR
       - name: Login to ECR
         run: |
           aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 439045398889.dkr.ecr.ap-south-1.amazonaws.com
 
+      # 4️⃣ Build Docker image with unique tag
       - name: Build Docker image
         run: docker build -t django-poc:${{ github.sha }} .
 
+      # 5️⃣ Tag image for ECR
       - name: Tag image
         run: docker tag django-poc:${{ github.sha }} 439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:${{ github.sha }}
 
+      # 6️⃣ Push image to ECR
       - name: Push to ECR
         run: docker push 439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:${{ github.sha }}
 
+      # 7️⃣ Get current ECS task definition
       - name: Get current task definition
         run: |
           aws ecs describe-task-definition \
             --task-definition django-task \
             --query taskDefinition > task-def.json
 
+      # 8️⃣ Clean JSON & update image
       - name: Clean and update task definition
         run: |
           jq '{
@@ -53,14 +61,20 @@ jobs:
           } 
           | .containerDefinitions[0].image = "439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:${{ github.sha }}"' task-def.json > new-task-def.json
 
+      # 9️⃣ Register new task definition (capture ARN)
       - name: Register new task definition
+        id: register-task
         run: |
-          aws ecs register-task-definition \
-            --cli-input-json file://new-task-def.json
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
 
-      - name: Update ECS service
+      # 🔟 Update ECS service to NEW revision (THIS IS THE FIX)
+      - name: Update ECS service with new revision
         run: |
           aws ecs update-service \
             --cluster django-cluster \
             --service django-task-service \
-            --force-new-deployment
+            --task-definition $TASK_DEF_ARN
