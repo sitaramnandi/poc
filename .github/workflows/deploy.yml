@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest   # ✅ fixed
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -33,7 +33,23 @@ jobs:
       - name: Push to ECR
         run: docker push 439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:${{ github.sha }}
 
-      - name: Update ECS Service
+      # 🔥 NEW PART (IMPORTANT)
+      - name: Get current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition django-task \
+            --query taskDefinition > task-def.json
+
+      - name: Update image in task definition
+        run: |
+          jq '.containerDefinitions[0].image = "439045398889.dkr.ecr.ap-south-1.amazonaws.com/django-poc:${{ github.sha }}"' task-def.json > new-task-def.json
+
+      - name: Register new task definition
+        run: |
+          aws ecs register-task-definition \
+            --cli-input-json file://new-task-def.json
+
+      - name: Update ECS service
         run: |
           aws ecs update-service \
             --cluster django-cluster \

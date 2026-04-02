@@ -5,4 +5,4 @@ from django.shortcuts import render
 from django.http import HttpResponse
 
 def home(request):
-    return HttpResponse("FINAL VERSION 🚀")
+    return HttpResponse("FINAL VERSION  new🚀")
